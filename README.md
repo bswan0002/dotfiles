@@ -39,3 +39,4 @@ ghostty
 ```
 
 Then, instead of running `stow .`, I could run `stow ghostty`. Repeat for each program config I want to copy over.
+Now that I think about it, a local stow ignore file would probably be a better way to exclude machine-specific config. That way structure is obvious, symlink cmd is always `stow .`, and exclusion is managed via local config.
