@@ -83,7 +83,7 @@ alias gad='git add .'
 alias gcm='git commit --no-verify -m'
 alias gp='git push'
 
-alias devfilter="echo '-/(aptrinsic|datadog|renewtoken|intercom|segment)/ -is:service-worker-initiated' | pbcopy && echo 'Filter copied to clipboard!'"
+alias devfilter="echo '-/(aptrinsic|datadoghq|renewtoken|intercom|segment)/ -is:service-worker-initiated' | pbcopy && echo 'Filter copied to clipboard!'"
 
 alias bathelp='bat --plain --language=help'
 help() {
