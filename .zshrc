@@ -104,6 +104,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # Create a new clone and branch for parallel development.
 # Usage: ga <branch-name> [base-branch]
 #
+# If branch exists on origin, checks it out directly.
+# Otherwise creates a new branch from base-branch.
+#
 # Optionally reads .gaconfig from repo root:
 #   copy = .env
 #   copy = .claude
@@ -149,9 +152,16 @@ ga() {
   # Fetch latest branches
   git fetch --quiet origin
 
-  # Select base branch
+  # Check if branch already exists on origin
+  local branch_exists=false
+  if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    branch_exists=true
+    echo "Branch '$branch' exists on origin"
+  fi
+
+  # Select base branch (only needed for new branches)
   local base_branch="$2"
-  if [[ -z "$base_branch" ]]; then
+  if [[ "$branch_exists" == false && -z "$base_branch" ]]; then
     base_branch="$(
       git branch -r --format='%(refname:short)' |
         sed 's|^origin/||' |
@@ -160,14 +170,14 @@ ga() {
           --prompt='Select base branch: ' \
           --query='main'
     )"
+
+    if [[ -z "$base_branch" ]]; then
+      echo "Aborted"
+      return 1
+    fi
   fi
 
-  # Fallback if fzf was cancelled
-  if [[ -z "$base_branch" ]]; then
-    base_branch="main"
-  fi
-
-  echo "Creating clone at $clone_path from $base_branch..."
+  echo "Creating clone at $clone_path..."
 
   # Clone using reference for speed
   if ! git clone --reference "$PWD" "$repo_url" "$clone_path"; then
@@ -177,14 +187,18 @@ ga() {
 
   cd "$clone_path" || return 1
 
-  # Ensure base branch exists locally
-  if ! git show-ref --verify --quiet "refs/remotes/origin/$base_branch"; then
-    echo "Error: base branch '$base_branch' not found on origin"
-    return 1
+  # Check out the branch
+  if [[ "$branch_exists" == true ]]; then
+    git checkout -B "$branch" "origin/$branch"
+  else
+    # Ensure base branch exists
+    if ! git show-ref --verify --quiet "refs/remotes/origin/$base_branch"; then
+      echo "Error: base branch '$base_branch' not found on origin"
+      return 1
+    fi
+    git checkout -B "$base_branch" "origin/$base_branch"
+    git checkout -b "$branch"
   fi
-
-  git checkout -B "$base_branch" "origin/$base_branch"
-  git checkout -b "$branch"
 
   # Load config from source repo
   local config_file="$source_root/.gaconfig"
@@ -206,7 +220,7 @@ ga() {
           local dest_dir
           dest_dir="$(dirname "$value")"
           [[ "$dest_dir" != "." ]] && mkdir -p "$dest_dir"
-          cp -r "$src" "$value"
+          cp -R "$src" "$value"
           echo "  Copied $value"
         else
           echo "  Warning: $value not found, skipping"
@@ -216,15 +230,19 @@ ga() {
 
     # Run post command
     local postcmd
-    postcmd="$(grep -E '^postcmd\s*=' "$config_file" | head -1 | cut -d'=' -f2-)"
-    postcmd="${postcmd#"${postcmd%%[![:space:]]*}"}"  # trim leading whitespace
+    postcmd="$(grep -E '^postcmd[[:space:]]*=' "$config_file" | head -1 | cut -d'=' -f2-)"
+    postcmd="${postcmd#"${postcmd%%[![:space:]]*}"}"
     if [[ -n "$postcmd" ]]; then
       echo "Running postcmd: $postcmd"
       eval "$postcmd"
     fi
   fi
 
-  echo "Created clone at $clone_path on branch '$branch' (based on '$base_branch')"
+  if [[ "$branch_exists" == true ]]; then
+    echo "Created clone at $clone_path on existing branch '$branch'"
+  else
+    echo "Created clone at $clone_path on new branch '$branch' (based on '$base_branch')"
+  fi
 }
 
 # Remove a cloned repo directory.
