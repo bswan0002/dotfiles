@@ -116,3 +116,29 @@ export PATH=/Users/ben/.opencode/bin:$PATH
 export PATH="$HOME/.local/bin:$PATH"
 
 if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)"; fi
+
+# Create worktree, tracking remote branch if it exists, otherwise new branch off main
+wtc() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: wtc <branch-name>" >&2
+    return 1
+  fi
+  git fetch origin "$1" 2>/dev/null
+  if git rev-parse --verify "origin/$1" &>/dev/null; then
+    echo "Remote branch origin/$1 found, tracking it"
+    wt switch "$1"
+  else
+    wt switch --create "$1"
+  fi
+}
+
+# Remove all worktrees whose branches are integrated into main
+wtgc() {
+  local branches=("${(@f)$(wt list --format=json | jq -r '.[] | select(.main_state == "integrated" or .main_state == "empty") | .branch')}")
+  if [[ ${#branches[@]} -eq 0 || -z "${branches[1]}" ]]; then
+    echo "No integrated worktrees to clean up"
+    return 0
+  fi
+  echo "Removing ${#branches[@]} integrated worktree(s): ${branches[*]}"
+  wt remove "${branches[@]}"
+}
