@@ -86,3 +86,5 @@ theme = ben-dark
 font-family = JetBrainsMono Nerd Font Mono
 shell-integration = zsh
 cursor-click-to-move = true
+
+keybind = alt+backspace=text:\x1b\x7f
