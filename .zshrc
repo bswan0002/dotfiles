@@ -25,6 +25,9 @@ bs-dev() {
 }
 
 # Exports
+# Machine-local secrets/config. Not tracked by dotfiles.
+[[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
+
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
