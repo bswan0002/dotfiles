@@ -95,6 +95,7 @@ zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'
 # Aliases
 alias ls='ls --color'
 alias c='clear'
+alias shrug="printf '%s' '¯\\_(ツ)_/¯' | pbcopy"
 
 alias gad='git add .'
 alias gcm='git commit --no-verify -m'
