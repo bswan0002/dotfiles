@@ -1,0 +1,18 @@
+onboarding = false
+
+[theme]
+name = "terminal"
+auto_switch = false
+
+[theme.custom]
+surface_dim = "#333333"
+
+[ui]
+show_agent_labels_on_pane_borders = true
+agent_panel_sort = "spaces"
+
+[experimental]
+kitty_graphics = true
+
+[ui.sound]
+enabled = false
