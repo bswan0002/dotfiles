@@ -1,3 +1,6 @@
+# Machine-local startup hooks (for integrations that must run before the prompt).
+[[ -f "$HOME/.zshrc.local.pre" ]] && source "$HOME/.zshrc.local.pre"
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -34,7 +37,13 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export BAT_THEME="Visual Studio Dark+"
 
 export NVM_DIR="$HOME/.nvm"
-[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+  source "$NVM_DIR/nvm.sh"
+elif command -v brew >/dev/null 2>&1; then
+  nvm_brew_prefix="$(brew --prefix)/opt/nvm"
+  [[ -s "$nvm_brew_prefix/nvm.sh" ]] && source "$nvm_brew_prefix/nvm.sh"
+  unset nvm_brew_prefix
+fi
 
 # Set the directory we want to store zinit and plugins
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
@@ -60,8 +69,8 @@ zinit light Aloxaf/fzf-tab
 
 # Load completions
 autoload -Uz compinit && compinit
-[ -s "/Users/ben/.bun/_bun" ] && source "/Users/ben/.bun/_bun"
-[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+[[ -s "$BUN_INSTALL/_bun" ]] && source "$BUN_INSTALL/_bun"
+[[ -s "$NVM_DIR/bash_completion" ]] && source "$NVM_DIR/bash_completion"
 
 zinit cdreplay -q
 
@@ -113,10 +122,9 @@ alias -g -- --help='--help 2>&1 | bat --language=help --style=plain'
 eval "$(fzf --zsh)"
 eval "$(zoxide init --cmd cd zsh)"
 
-[[ "$TERM_PROGRAM" == "kiro" ]] && . "$(kiro --locate-shell-integration-path zsh)"
 
 # opencode
-export PATH=/Users/ben/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 
 if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)"; fi
@@ -136,6 +144,35 @@ wtc() {
   fi
 }
 
+# Remove current worktree, force-deleting the branch when its PR is merged
+wtr() {
+  local pr_state branch git_dir ref_status
+  local workspace_id="${HERDR_WORKSPACE_ID:-}"
+  branch="$(git symbolic-ref --quiet HEAD)" || branch=""
+  git_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || return $?
+  pr_state="$(gh pr view --json state --jq '.state' 2>/dev/null)" || pr_state=""
+
+  if [[ "$pr_state" == "MERGED" ]]; then
+    wt remove -D --no-hooks "$@" || return $?
+  else
+    wt remove --no-hooks "$@" || return $?
+  fi
+
+  if [[ -n "$workspace_id" && -n "$branch" ]]; then
+    if git --git-dir="$git_dir" show-ref --verify --quiet "$branch"; then
+      echo "Branch still exists; leaving Herdr workspace open."
+    else
+      ref_status=$?
+      if [[ "$ref_status" -eq 1 ]]; then
+        herdr workspace close "$workspace_id"
+      else
+        echo "Could not confirm branch deletion; leaving Herdr workspace open." >&2
+        return "$ref_status"
+      fi
+    fi
+  fi
+}
+
 # Remove all worktrees whose branches are integrated into main
 wtgc() {
   local branches=("${(@f)$(wt list --format=json | jq -r '.[] | select(.main_state == "integrated" or .main_state == "empty") | .branch')}")
@@ -146,3 +183,82 @@ wtgc() {
   echo "Removing ${#branches[@]} integrated worktree(s): ${branches[*]}"
   wt remove "${branches[@]}"
 }
+
+# Copy the current worktree's ignored AGENTS.md to the repo's other worktrees
+sync-agents() {
+  local root agents wt exclude
+
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "Not inside a git repo" >&2
+    return 1
+  }
+
+  agents="$root/AGENTS.md"
+  if [[ ! -f "$agents" ]]; then
+    echo "No AGENTS.md found at $agents" >&2
+    return 1
+  fi
+
+  git -C "$root" worktree list --porcelain |
+    awk '/^worktree / { sub(/^worktree /, ""); print }' |
+    while IFS= read -r wt; do
+      if [[ "$wt" == "$root" ]]; then
+        continue
+      fi
+
+      if [[ -d "$wt/AGENTS.md" ]]; then
+        echo "Skipping $wt/AGENTS.md because it is a directory" >&2
+        continue
+      fi
+
+      cp "$agents" "$wt/AGENTS.md"
+      echo "Updated $wt/AGENTS.md"
+
+      exclude="$(git -C "$wt" rev-parse --git-path info/exclude)"
+      mkdir -p "${exclude:h}"
+      if ! grep -qxF "AGENTS.md" "$exclude" 2>/dev/null; then
+        echo "AGENTS.md" >> "$exclude"
+        echo "Ignored AGENTS.md in $wt"
+      fi
+    done
+}
+
+# Kill the process listening on a port, escalating after 3 seconds
+kp() {
+  local port="$1"
+  local -a pids alive
+
+  if [[ "$port" != <-> ]] || (( port < 1 || port > 65535 )); then
+    echo "Usage: kp <port>" >&2
+    return 2
+  fi
+
+  pids=($(lsof -tiTCP:"$port" -sTCP:LISTEN))
+  if (( ${#pids} == 0 )); then
+    echo "No process listening on port $port"
+    return 1
+  fi
+
+  echo "Sending SIGTERM to PID(s): ${pids[*]}"
+  kill -TERM "${pids[@]}"
+
+  for _ in {1..30}; do
+    alive=()
+    for pid in "${pids[@]}"; do
+      kill -0 "$pid" 2>/dev/null && alive+=("$pid")
+    done
+
+    if (( ${#alive} == 0 )); then
+      echo "Stopped gracefully"
+      return 0
+    fi
+
+    sleep 0.1
+  done
+
+  echo "Forcing shutdown of PID(s): ${alive[*]}"
+  kill -KILL "${alive[@]}"
+}
+
+# Machine-local integrations that must run after shared shell setup.
+[[ -f "$HOME/.zshrc.local.post" ]] && source "$HOME/.zshrc.local.post"
