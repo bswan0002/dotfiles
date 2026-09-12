@@ -44,7 +44,7 @@ Now that I think about it, a local stow ignore file would probably be a better w
 
 ## Machine-local shell configuration
 
-The shared `.zshrc` loads these optional files from your home directory. Keep them outside this repository; Git ignores them as a precaution.
+The shared `.zshrc` loads these optional files from your home directory. Keep them outside this repository.
 
 - `~/.zshrc.local.pre`: startup integrations that must run before the prompt.
 - `~/.zshrc.local`: machine-specific exports and secret lookups.
