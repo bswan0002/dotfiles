@@ -1,0 +1,2 @@
+# Use terminal scrollback instead of opening a pager.
+--paging=never

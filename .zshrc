@@ -13,20 +13,6 @@ if [[ -f "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
-export BS_DIR="$HOME/Dev/bs"
-source "$BS_DIR/bs.sh"
-
-# Switch bs to current directory (run from a bs branch space) or back to main
-bs-dev() {
-  if [[ "$1" == "reset" ]]; then
-    export BS_DIR="$HOME/Dev/bs"
-  else
-    export BS_DIR="$(pwd)"
-  fi
-  source "$BS_DIR/bs.sh"
-  echo "BS_DIR=$BS_DIR"
-}
-
 # Exports
 # Machine-local secrets/config. Not tracked by dotfiles.
 [[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
@@ -259,6 +245,14 @@ kp() {
   echo "Forcing shutdown of PID(s): ${alive[*]}"
   kill -KILL "${alive[@]}"
 }
+
+# >>> bitshelf completion >>>
+# Initialize completion only if it is not already available.
+if (( ! $+functions[compdef] )); then
+  autoload -Uz compinit && compinit
+fi
+eval "$(bs completion --shell zsh)"
+# <<< bitshelf completion <<<
 
 # Machine-local integrations that must run after shared shell setup.
 [[ -f "$HOME/.zshrc.local.post" ]] && source "$HOME/.zshrc.local.post"
