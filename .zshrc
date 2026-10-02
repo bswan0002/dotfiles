@@ -14,6 +14,10 @@ if [[ -f "/opt/homebrew/bin/brew" ]]; then
 fi
 
 # Exports
+# Use Zed for terminal-launched editing; wait until the file is closed.
+export EDITOR="zed --wait"
+export VISUAL="zed --wait"
+
 # Machine-local secrets/config. Not tracked by dotfiles.
 [[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
 
