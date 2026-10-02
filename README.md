@@ -42,6 +42,16 @@ Then, instead of running `stow .`, I could run `stow ghostty`. Repeat for each p
 Now that I think about it, a local stow ignore file would probably be a better way to exclude machine-specific config. That way structure is obvious, symlink cmd is always `stow .`, and exclusion is managed via local config.
 
 
+## Zed
+
+Zed's settings, keybindings, and tasks are tracked in `.config/zed/`.
+Conversations, caches, and backups stay local and are not tracked.
+
+Before running `stow .` on a machine with existing Zed configuration, move
+`settings.json`, `keymap.json`, and `tasks.json` from `~/.config/zed/` to a
+backup directory outside this repo. Leave the rest of `~/.config/zed/` in place;
+Stow will link the tracked files alongside Zed's local data.
+
 ## Machine-local shell configuration
 
 The shared `.zshrc` loads these optional files from your home directory. Keep them outside this repository.

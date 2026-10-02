@@ -1,0 +1,6 @@
+# Track configuration only, not Zed's runtime data or local backups.
+*
+!.gitignore
+!settings.json
+!keymap.json
+!tasks.json
