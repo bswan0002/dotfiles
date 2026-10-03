@@ -250,6 +250,9 @@ kp() {
   kill -KILL "${alive[@]}"
 }
 
+# bun completions
+[ -s "/Users/ben/.bun/_bun" ] && source "/Users/ben/.bun/_bun"
+
 # >>> bitshelf completion >>>
 # Initialize completion only if it is not already available.
 if (( ! $+functions[compdef] )); then
