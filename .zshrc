@@ -27,13 +27,25 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export BAT_THEME="Visual Studio Dark+"
 
 export NVM_DIR="$HOME/.nvm"
-if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-  source "$NVM_DIR/nvm.sh"
-elif command -v brew >/dev/null 2>&1; then
-  nvm_brew_prefix="$(brew --prefix)/opt/nvm"
-  [[ -s "$nvm_brew_prefix/nvm.sh" ]] && source "$nvm_brew_prefix/nvm.sh"
-  unset nvm_brew_prefix
-fi
+# Pay NVM's initialization cost on first use, not on every new terminal.
+_load_nvm() {
+  local nvm_script="$NVM_DIR/nvm.sh"
+  if [[ ! -s "$nvm_script" ]] && command -v brew >/dev/null 2>&1; then
+    nvm_script="$(brew --prefix)/opt/nvm/nvm.sh"
+  fi
+  if [[ ! -s "$nvm_script" ]]; then
+    print -u2 'NVM initialization script not found.'
+    return 127
+  fi
+  unfunction nvm node npm npx corepack
+  source "$nvm_script" || return $?
+  [[ ! -s "$NVM_DIR/bash_completion" ]] || source "$NVM_DIR/bash_completion"
+}
+nvm() { _load_nvm && nvm "$@"; }
+node() { _load_nvm && node "$@"; }
+npm() { _load_nvm && npm "$@"; }
+npx() { _load_nvm && npx "$@"; }
+corepack() { _load_nvm && corepack "$@"; }
 
 # Set the directory we want to store zinit and plugins
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
@@ -60,7 +72,6 @@ zinit light Aloxaf/fzf-tab
 # Load completions
 autoload -Uz compinit && compinit
 [[ -s "$BUN_INSTALL/_bun" ]] && source "$BUN_INSTALL/_bun"
-[[ -s "$NVM_DIR/bash_completion" ]] && source "$NVM_DIR/bash_completion"
 
 zinit cdreplay -q
 
@@ -250,15 +261,30 @@ kp() {
   kill -KILL "${alive[@]}"
 }
 
-# bun completions
-[ -s "/Users/ben/.bun/_bun" ] && source "/Users/ben/.bun/_bun"
-
 # >>> bitshelf completion >>>
 # Initialize completion only if it is not already available.
 if (( ! $+functions[compdef] )); then
   autoload -Uz compinit && compinit
 fi
-eval "$(bs completion --shell zsh)"
+# Refresh automatically when bs (including a symlink target) or this config changes.
+() {
+  local bs_bin="${commands[bs]:A}"
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  local cache_file="$cache_dir/bs-completion.zsh"
+  [[ -n "$bs_bin" && -x "$bs_bin" ]] || return 0
+  if [[ ! -s "$cache_file" || "$bs_bin" -nt "$cache_file" || "${ZDOTDIR:-$HOME}/.zshrc" -nt "$cache_file" ]]; then
+    local generated
+    if generated="$("$bs_bin" completion --shell zsh)" && [[ -n "$generated" ]]; then
+      if mkdir -p "$cache_dir" && print -r -- "$generated" > "$cache_file.$$.tmp"; then
+        mv -f "$cache_file.$$.tmp" "$cache_file"
+      else
+        eval "$generated"
+        return 0
+      fi
+    fi
+  fi
+  [[ ! -s "$cache_file" ]] || source "$cache_file"
+}
 # <<< bitshelf completion <<<
 
 # Machine-local integrations that must run after shared shell setup.
