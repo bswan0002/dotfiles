@@ -26,6 +26,10 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 
 export BAT_THEME="Visual Studio Dark+"
 
+# Rex renders images via libghostty but doesn't identify as Ghostty, so tell
+# Claude Code to use terminal images anyway.
+[[ $TERM_PROGRAM == rex ]] && export CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1
+
 export NVM_DIR="$HOME/.nvm"
 # Pay NVM's initialization cost on first use, not on every new terminal.
 _load_nvm() {
